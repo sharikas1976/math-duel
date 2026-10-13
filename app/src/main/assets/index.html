@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Math Duel</title>
+<style>
+@font-face{font-family:"Game";src:url(font.woff2) format("woff2");font-weight:800}
+:root{
+  --bg:#140A3E; --bg2:#1F1260; --p1:#16CFF2; --p1d:#0B6F86; --p2:#FF7A1A; --p2d:#8A3A05;
+  --sun:#FFC929; --ok:#7CE33A; --bad:#FF3B5C; --white:#FFFFFF;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff;font-family:"Game","Arial Rounded MT Bold",Arial,sans-serif;touch-action:none}
+#stage{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,var(--bg2) 0%,var(--bg) 70%)}
+.divider{position:absolute;left:50%;top:36vh;bottom:6vh;width:0.6vw;margin-left:-0.3vw;border-radius:1vw;background:rgba(255,255,255,.12)}
+
+/* ---------- top bar ---------- */
+.timer{position:absolute;left:50%;top:3vh;transform:translateX(-50%);min-width:18vw;padding:1vh 2vw;border-radius:3vh;background:rgba(255,255,255,.1);border:0.4vh solid rgba(255,255,255,.25);text-align:center;font-size:6vh;line-height:1.1;letter-spacing:.2vw}
+.timer.low{color:var(--bad);border-color:var(--bad);animation:pulse .8s infinite}
+.question{position:absolute;left:50%;top:14vh;transform:translateX(-50%);width:26vw;height:18vh;white-space:nowrap;overflow:hidden;border-radius:3vh;background:#fff;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11vh;line-height:1;box-shadow:0 1vh 0 rgba(0,0,0,.25)}
+.question.reveal{background:var(--sun)}
+
+.player{position:absolute;top:4vh;width:20vw;text-align:center}
+.player.p1{left:17vw}.player.p2{right:17vw}
+.player .name{font-size:4.6vh;white-space:nowrap;letter-spacing:.3vw}
+.p1 .name{color:var(--p1)}.p2 .name{color:var(--p2)}
+.counter{margin:1vh auto 0;width:12vw;height:12vh;border-radius:2.5vh;display:flex;align-items:center;justify-content:center;font-size:9vh;line-height:1;color:var(--bg);position:relative}
+.p1 .counter{background:var(--p1)}.p2 .counter{background:var(--p2)}
+.bar{margin:1.2vh auto 0;width:16vw;height:1.6vh;border-radius:1vh;background:rgba(255,255,255,.12);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:1vh;transition:width .3s}
+.p1 .bar i{background:var(--p1)}.p2 .bar i{background:var(--p2)}
+.plus{position:absolute;left:50%;top:-1vh;transform:translateX(-50%);font-size:7vh;color:var(--ok);opacity:0;pointer-events:none}
+.plus.show{animation:plus 0.9s ease-out}
+
+/* ---------- answer squares (kept well away from all edges) ---------- */
+.ans{position:absolute;width:22vw;height:21vh;border-radius:3.5vh;display:flex;align-items:center;justify-content:center;font-size:13vh;line-height:1;color:#fff;border:0.8vh solid rgba(255,255,255,.85);box-shadow:0 1.2vh 0 rgba(0,0,0,.3);transition:transform .08s,opacity .2s}
+.ans.p1{background:var(--p1d)}.ans.p2{background:var(--p2d)}
+.ans.s1-a{left:16vw;top:39vh}.ans.s1-b{left:16vw;top:66vh}
+.ans.s2-a{right:16vw;top:39vh}.ans.s2-b{right:16vw;top:66vh}
+.ans.hit{transform:scale(.94)}
+.ans.good{background:var(--ok)!important;color:var(--bg);border-color:#fff}
+.ans.wrong{background:var(--bad)!important;animation:shake .35s}
+.side-locked .ans{opacity:.35}
+.lockmsg{position:absolute;top:61vh;width:22vw;text-align:center;font-size:4vh;color:var(--bad);opacity:0;pointer-events:none}
+.lockmsg.l1{left:16vw}.lockmsg.l2{right:16vw}
+.side-locked .lockmsg{opacity:1}
+
+/* ---------- overlays ---------- */
+.overlay{position:absolute;inset:0;background:rgba(14,6,44,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:10}
+.overlay.hidden{display:none}
+.title{font-size:15vh;line-height:1;color:#fff}
+.title span{color:var(--sun)}
+.sub{font-size:4.2vh;color:#C9C0F2;margin-top:2.5vh;line-height:1.35;font-family:Arial,sans-serif;font-weight:700}
+.btn{margin-top:6vh;padding:0 4vw;min-width:30vw;height:20vh;white-space:nowrap;border-radius:4vh;background:var(--ok);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:8vh;box-shadow:0 1.4vh 0 rgba(0,0,0,.35);animation:bob 1.6s ease-in-out infinite}
+.btn.wait{background:#5D5680;color:#C9C0F2;animation:none}
+.count{font-size:40vh;line-height:1;color:var(--sun);animation:zoom .9s ease-out}
+.win{font-size:13vh;line-height:1.05}
+.win.p1c{color:var(--p1)}.win.p2c{color:var(--p2)}.win.draw{color:var(--sun)}
+.final{display:flex;gap:6vw;margin-top:3vh;font-size:8vh}
+.final .a{color:var(--p1)}.final .b{color:var(--p2)}
+.reason{font-size:4vh;color:#C9C0F2;margin-top:1.5vh;font-family:Arial,sans-serif;font-weight:700}
+.confetti{position:absolute;top:-5vh;width:1.4vw;height:2.6vh;border-radius:.4vh;opacity:.95;animation:fall linear forwards}
+
+@keyframes pulse{50%{transform:translateX(-50%) scale(1.08)}}
+@keyframes shake{20%{transform:translateX(-1.2vw)}40%{transform:translateX(1.2vw)}60%{transform:translateX(-.8vw)}80%{transform:translateX(.8vw)}}
+@keyframes plus{0%{opacity:0;transform:translate(-50%,2vh)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-8vh)}}
+@keyframes bob{50%{transform:translateY(-1vh)}}
+@keyframes zoom{0%{transform:scale(2.2);opacity:0}60%{opacity:1}100%{transform:scale(1)}}
+@keyframes fall{to{transform:translateY(115vh) rotate(720deg)}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="divider"></div>
+  <div class="timer" id="timer">3:00</div>
+  <div class="question" id="question"><span>?</span></div>
+
+  <div class="player p1"><div class="name">PLAYER 1</div><div class="counter"><span id="score1">0</span><div class="plus" id="plus1">+1</div></div><div class="bar"><i id="bar1"></i></div></div>
+  <div class="player p2"><div class="name">PLAYER 2</div><div class="counter"><span id="score2">0</span><div class="plus" id="plus2">+1</div></div><div class="bar"><i id="bar2"></i></div></div>
+
+  <div id="side1">
+    <div class="ans p1 s1-a" data-p="1" data-i="0"></div>
+    <div class="ans p1 s1-b" data-p="1" data-i="1"></div>
+    <div class="lockmsg l1">Oops! Wait…</div>
+  </div>
+  <div id="side2">
+    <div class="ans p2 s2-a" data-p="2" data-i="0"></div>
+    <div class="ans p2 s2-b" data-p="2" data-i="1"></div>
+    <div class="lockmsg l2">Oops! Wait…</div>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <div class="title">MATH <span>DUEL</span></div>
+    <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
+    <div class="btn" id="startBtn">START</div>
+  </div>
+  <div class="overlay hidden" id="countScreen"><div class="count" id="countNum">3</div></div>
+  <div class="overlay hidden" id="endScreen">
+    <div class="win" id="winText">PLAYER 1 WINS!</div>
+    <div class="final"><span class="a" id="final1">0</span><span>–</span><span class="b" id="final2">0</span></div>
+    <div class="reason" id="reason"></div>
+    <div class="btn wait" id="againBtn">PLAY AGAIN</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ---------------- settings ----------------
+  var WIN_SCORE   = 10;     // first to this many wins
+  var GAME_SECS   = 180;    // 3 minutes
+  var LOCK_MS     = 1200;   // pause for a player who hits the wrong answer
+  var NEXT_MS     = 1100;   // pause showing the answer before the next question
+  var DEBOUNCE_MS = 250;    // ignore double-hits from the sensor
+  var AGAIN_DELAY = 3000;   // "Play again" becomes active after this
+
+  // ---------------- state ----------------
+  var score = {1:0, 2:0};
+  var answers = {1:[0,0], 2:[0,0]};   // values shown in each player's two squares
+  var correct = 0, lastQ = "";
+  var accepting = false, running = false;
+  var locked = {1:false, 2:false};
+  var lastHit = {1:0, 2:0};
+  var timeLeft = GAME_SECS, tick = null, againReady = false;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".ans"));
+
+  // ---------------- sound (generated, no files needed) ----------------
+  var ac = null;
+  function audio(){ if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(ac && ac.state==="suspended"){ ac.resume(); } }
+  function tone(freq, dur, type, when, vol){
+    if(!ac) return;
+    var t = ac.currentTime + (when||0), o = ac.createOscillator(), g = ac.createGain();
+    o.type = type||"sine"; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol||0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  var sfx = {
+    good: function(){ tone(660,.12,"triangle",0); tone(990,.22,"triangle",.1); },
+    bad:  function(){ tone(180,.3,"sawtooth",0,.18); },
+    beep: function(){ tone(520,.15,"square",0,.15); },
+    go:   function(){ tone(880,.35,"square",0,.18); },
+    win:  function(){ [523,659,784,1047].forEach(function(f,i){ tone(f,.3,"triangle",i*.15); }); }
+  };
+
+  // ---------------- questions (age 8: + and − within 20) ----------------
+  function rnd(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+  function makeQuestion(){
+    var a,b,op,q,ans;
+    do{
+      if(Math.random() < 0.5){ a = rnd(1,10); b = rnd(1,10); op = "+"; ans = a+b; }
+      else { a = rnd(5,20); b = rnd(1,a-1); op = "−"; ans = a-b; }
+      q = a + " " + op + " " + b;
+    } while(q === lastQ);
+    lastQ = q;
+    var wrong;
+    do{ wrong = ans + [-3,-2,-1,1,2,3][rnd(0,5)]; } while(wrong < 0 || wrong === ans);
+    return {text:q, ans:ans, wrong:wrong};
+  }
+
+  function nextQuestion(){
+    var q = makeQuestion();
+    correct = q.ans;
+    $("question").textContent = q.text;
+    $("question").classList.remove("reveal");
+    fitText($("question"), 11);
+    [1,2].forEach(function(p){
+      // each side gets its own random order, so players can't copy each other
+      answers[p] = Math.random() < 0.5 ? [q.ans, q.wrong] : [q.wrong, q.ans];
+    });
+    boxes.forEach(function(b){
+      var p = +b.getAttribute("data-p"), i = +b.getAttribute("data-i");
+      b.textContent = answers[p][i];
+      b.classList.remove("good","wrong","hit");
+    });
+    accepting = true;
+  }
+
+  // shrink text until it fits its box (works on any screen shape)
+  function fitText(el, maxVh){
+    var txt = el.textContent, span = document.createElement("span");
+    span.textContent = txt; span.style.display = "inline-block";
+    el.textContent = ""; el.appendChild(span);
+    var size = maxVh, room = el.clientWidth * 0.9;
+    el.style.fontSize = size + "vh";
+    while(span.offsetWidth > room && size > 4){ size -= 0.5; el.style.fontSize = size + "vh"; }
+  }
+
+  // ---------------- input ----------------
+  function onHit(e){
+    if(e.cancelable) e.preventDefault();
+    audio();
+    var b = e.currentTarget, p = +b.getAttribute("data-p"), i = +b.getAttribute("data-i");
+    var now = Date.now();
+    if(!running || !accepting || locked[p]) return;
+    if(now - lastHit[p] < DEBOUNCE_MS) return;
+    lastHit[p] = now;
+    b.classList.add("hit"); setTimeout(function(){ b.classList.remove("hit"); }, 120);
+
+    if(answers[p][i] === correct){
+      accepting = false;
+      score[p]++;
+      b.classList.add("good");
+      sfx.good();
+      updateScores(p);
+      $("question").classList.add("reveal");
+      boxes.forEach(function(x){ var xp=+x.getAttribute("data-p"), xi=+x.getAttribute("data-i"); if(answers[xp][xi]===correct) x.classList.add("good"); });
+      if(score[p] >= WIN_SCORE){ setTimeout(function(){ endGame("first to " + WIN_SCORE); }, 700); }
+      else { setTimeout(function(){ if(running) nextQuestion(); }, NEXT_MS); }
+    } else {
+      b.classList.add("wrong");
+      sfx.bad();
+      locked[p] = true;
+      $("side"+p).classList.add("side-locked");
+      setTimeout(function(){
+        locked[p] = false;
+        $("side"+p).classList.remove("side-locked");
+        b.classList.remove("wrong");
+      }, LOCK_MS);
+    }
+  }
+  boxes.forEach(function(b){
+    if(window.PointerEvent){ b.addEventListener("pointerdown", onHit); }
+    else { b.addEventListener("touchstart", onHit, {passive:false}); b.addEventListener("mousedown", onHit); }
+  });
+
+  function onButton(el, fn){
+    var handler = function(e){ if(e.cancelable) e.preventDefault(); audio(); fn(); };
+    if(window.PointerEvent){ el.addEventListener("pointerdown", handler); }
+    else { el.addEventListener("touchstart", handler, {passive:false}); el.addEventListener("mousedown", handler); }
+  }
+  onButton($("startBtn"), function(){ if(!running) countdown(); });
+  onButton($("againBtn"), function(){ if(againReady) countdown(); });
+  // remote control: OK / Enter starts or restarts
+  document.addEventListener("keydown", function(e){
+    var k = e.key || e.keyCode;
+    if(k==="Enter" || k===13 || k===23 || k===" "){
+      audio();
+      if(!$("startScreen").classList.contains("hidden")) countdown();
+      else if(!$("endScreen").classList.contains("hidden") && againReady) countdown();
+    }
+  });
+
+  // ---------------- flow ----------------
+  function updateScores(flash){
+    $("score1").textContent = score[1]; $("score2").textContent = score[2];
+    $("bar1").style.width = (score[1]/WIN_SCORE*100) + "%";
+    $("bar2").style.width = (score[2]/WIN_SCORE*100) + "%";
+    if(flash){ var pl = $("plus"+flash); pl.classList.remove("show"); void pl.offsetWidth; pl.classList.add("show"); }
+  }
+  function showTime(){
+    var m = Math.floor(timeLeft/60), s = timeLeft%60;
+    $("timer").textContent = m + ":" + (s<10?"0":"") + s;
+    $("timer").classList.toggle("low", timeLeft <= 10);
+  }
+  function countdown(){
+    $("startScreen").classList.add("hidden"); $("endScreen").classList.add("hidden");
+    $("countScreen").classList.remove("hidden");
+    clearConfetti();
+    score = {1:0,2:0}; locked = {1:false,2:false}; updateScores(); timeLeft = GAME_SECS; showTime();
+    $("question").textContent = "?"; fitText($("question"), 11);
+    boxes.forEach(function(b){ b.textContent = ""; b.classList.remove("good","wrong"); });
+    var n = 3;
+    var show = function(){
+      var el = $("countNum");
+      el.textContent = n > 0 ? n : "GO!";
+      el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
+      if(n > 0){ sfx.beep(); n--; setTimeout(show, 900); }
+      else { sfx.go(); setTimeout(startGame, 700); }
+    };
+    show();
+  }
+  function startGame(){
+    $("countScreen").classList.add("hidden");
+    running = true;
+    nextQuestion();
+    clearInterval(tick);
+    tick = setInterval(function(){
+      timeLeft--; showTime();
+      if(timeLeft <= 0){ endGame("time’s up!"); }
+    }, 1000);
+  }
+  function endGame(why){
+    if(!running) return;
+    running = false; accepting = false; clearInterval(tick);
+    var w = $("winText");
+    w.className = "win";
+    if(score[1] > score[2]){ w.textContent = "PLAYER 1 WINS!"; w.classList.add("p1c"); }
+    else if(score[2] > score[1]){ w.textContent = "PLAYER 2 WINS!"; w.classList.add("p2c"); }
+    else { w.textContent = "IT’S A DRAW!"; w.classList.add("draw"); }
+    $("final1").textContent = score[1]; $("final2").textContent = score[2];
+    $("reason").textContent = why.charAt(0).toUpperCase() + why.slice(1);
+    againReady = false;
+    var ab = $("againBtn"); ab.classList.add("wait");
+    setTimeout(function(){ againReady = true; ab.classList.remove("wait"); }, AGAIN_DELAY);
+    $("endScreen").classList.remove("hidden");
+    sfx.win(); confetti();
+  }
+  function confetti(){
+    var cols = ["#16CFF2","#FF7A1A","#FFC929","#7CE33A","#FF2E93","#FFFFFF"];
+    for(var i=0;i<70;i++){
+      var c = document.createElement("div");
+      c.className = "confetti";
+      c.style.left = Math.random()*100 + "vw";
+      c.style.background = cols[i%cols.length];
+      c.style.animationDuration = (2.2 + Math.random()*2.2) + "s";
+      c.style.animationDelay = (Math.random()*0.8) + "s";
+      $("endScreen").appendChild(c);
+    }
+  }
+  function clearConfetti(){
+    Array.prototype.slice.call(document.querySelectorAll(".confetti")).forEach(function(c){ c.parentNode.removeChild(c); });
+  }
+
+  // test hook (used only for automated checks)
+  window.__md = { state:function(){ return {score:score, answers:answers, correct:correct, timeLeft:timeLeft, running:running, accepting:accepting, locked:locked}; },
+                  setTime:function(s){ timeLeft = s; showTime(); } };
+})();
+</script>
+</body>
+</html>
