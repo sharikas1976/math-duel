@@ -31,17 +31,23 @@ jobs:
           gradle assembleDebug --no-daemon
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MathDuel.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk MathDuel.apk
+          cp inspector/build/outputs/apk/debug/inspector-debug.apk WallInspector.apk
 
       - name: Keep APK as a build file
         uses: actions/upload-artifact@v4
         with:
           name: MathDuel-apk
-          path: MathDuel.apk
+          path: |
+            MathDuel.apk
+            WallInspector.apk
 
       - name: Publish as a release (easy download)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Math Duel build ${{ github.run_number }}
-          files: MathDuel.apk
+          files: |
+            MathDuel.apk
+            WallInspector.apk

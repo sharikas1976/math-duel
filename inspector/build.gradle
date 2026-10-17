@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.wallgames.inspector'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.wallgames.inspector"
+        minSdk 21
+        targetSdk 22   // below 23 so storage permission is granted at install (old Android 7 device)
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
