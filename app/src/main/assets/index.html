@@ -101,7 +101,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="title">MATH <span>DUEL</span></div>
     <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
     <div class="btn" id="startBtn">START</div>
-    <div class="testnote">TEST BUILD: touch anywhere — a yellow circle should appear where you hit</div>
+    <div class="testnote">TEST BUILD: hit the wall — a yellow circle should appear where you hit</div>
   </div>
   <div class="overlay hidden" id="countScreen"><div class="count" id="countNum">3</div></div>
   <div class="overlay hidden" id="endScreen">
@@ -200,8 +200,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   // ---------------- input ----------------
   function onHit(e){
     if(e.cancelable) e.preventDefault();
+    hitBox(e.currentTarget);
+  }
+  function hitBox(b){
     audio();
-    var b = e.currentTarget, p = +b.getAttribute("data-p"), i = +b.getAttribute("data-i");
+    var p = +b.getAttribute("data-p"), i = +b.getAttribute("data-i");
     var now = Date.now();
     if(!running || !accepting || locked[p]) return;
     if(now - lastHit[p] < DEBOUNCE_MS) return;
@@ -242,6 +245,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   }
   onButton($("startBtn"), function(){ if(!running) countdown(); });
   onButton($("againBtn"), function(){ if(againReady) countdown(); });
+  // ---------------- wall hits from the IR camera (TUIO, delivered by the Android app) ----------------
+  // nx, ny are 0..1 positions on the projected image
+  var wallHits = 0;
+  window.wallHit = function(nx, ny, id){
+    var x = nx * window.innerWidth, y = ny * window.innerHeight;
+    wallHits++;
+    dot(x, y);
+    var el = document.elementFromPoint(x, y);
+    while(el && el !== document.body){
+      if(el.classList && el.classList.contains("ans")){ hitBox(el); return; }
+      if(el.id === "startBtn"){ audio(); if(!running) countdown(); return; }
+      if(el.id === "againBtn"){ audio(); if(againReady) countdown(); return; }
+      el = el.parentNode;
+    }
+  };
+  var tuioText = "";
+  window.tuioStatus = function(t){ tuioText = t; report("tuio"); };
+
   // remote control: OK / Enter starts or restarts
   document.addEventListener("keydown", function(e){
     var k = e.key || e.keyCode;
@@ -333,10 +354,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 1300);
   }
   function report(type, x, y){
-    counts[type] = (counts[type]||0) + 1;
+    if(type !== "tuio") counts[type] = (counts[type]||0) + 1;
     var parts = [];
     for(var k in counts){ parts.push(k + ":" + counts[k]); }
-    dbg.textContent = "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
+    dbg.textContent = (tuioText ? "WALL " + tuioText + " | " : "") + "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
       " | last: " + type + (x!=null ? " @" + Math.round(x) + "," + Math.round(y) : "") + " | " + parts.join(" ");
   }
   function watch(type){

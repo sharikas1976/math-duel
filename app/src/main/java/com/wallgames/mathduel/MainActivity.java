@@ -3,6 +3,9 @@ package com.wallgames.mathduel;
 import android.app.Activity;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.Locale;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -18,6 +21,34 @@ import android.webkit.WebViewClient;
 public class MainActivity extends Activity {
 
     private WebView web;
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private TuioReceiver tuio;
+
+    /** Sends wall hits from the IR camera (TUIO on port 3333) into the game. */
+    private final TuioReceiver.Listener wallListener = new TuioReceiver.Listener() {
+        public void onHit(final float x, final float y, final int id) {
+            ui.post(new Runnable() {
+                public void run() {
+                    if (web != null) {
+                        web.evaluateJavascript(String.format(Locale.US,
+                                "window.wallHit&&window.wallHit(%.4f,%.4f,%d)", x, y, id), null);
+                    }
+                }
+            });
+        }
+    };
+
+    /** Shows the camera link status in the game's test bar once a second. */
+    private final Runnable statusTick = new Runnable() {
+        public void run() {
+            if (web != null && tuio != null) {
+                String t = tuio.error != null ? "error: " + tuio.error.replace("'", "")
+                        : "pkts " + tuio.packets + " hits " + tuio.hits + " on-wall " + tuio.contacts + " last " + tuio.lastPos;
+                web.evaluateJavascript("window.tuioStatus&&window.tuioStatus('" + t + "')", null);
+            }
+            ui.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +76,7 @@ public class MainActivity extends Activity {
 
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
+        tuio = new TuioReceiver(wallListener);
         web.requestFocus();
         hideSystemBars();
     }
@@ -76,11 +108,21 @@ public class MainActivity extends Activity {
         if (web != null) {
             web.onResume();
         }
+        if (tuio != null) {
+            tuio.start();
+        }
+        ui.removeCallbacks(statusTick);
+        ui.postDelayed(statusTick, 1000);
         hideSystemBars();
     }
 
     @Override
     protected void onPause() {
+        // release port 3333 so the supplier's games get the wall hits again
+        if (tuio != null) {
+            tuio.stop();
+        }
+        ui.removeCallbacks(statusTick);
         if (web != null) {
             web.onPause();
         }
