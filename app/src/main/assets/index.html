@@ -12,7 +12,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff;font-family:"Game","Arial Rounded MT Bold",Arial,sans-serif;touch-action:none}
-#stage{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,var(--bg2) 0%,var(--bg) 70%)}
+#stage{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:radial-gradient(ellipse at 50% 35%,var(--bg2) 0%,var(--bg) 70%)}
 .divider{position:absolute;left:50%;top:36vh;bottom:6vh;width:0.6vw;margin-left:-0.3vw;border-radius:1vw;background:rgba(255,255,255,.12)}
 
 /* ---------- top bar ---------- */
@@ -47,7 +47,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .side-locked .lockmsg{opacity:1}
 
 /* ---------- overlays ---------- */
-.overlay{position:absolute;inset:0;background:rgba(14,6,44,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:10}
+.overlay{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:rgba(14,6,44,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:10}
 .overlay.hidden{display:none}
 .title{font-size:15vh;line-height:1;color:#fff}
 .title span{color:var(--sun)}
@@ -57,11 +57,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .count{font-size:40vh;line-height:1;color:var(--sun);animation:zoom .9s ease-out}
 .win{font-size:13vh;line-height:1.05}
 .win.p1c{color:var(--p1)}.win.p2c{color:var(--p2)}.win.draw{color:var(--sun)}
-.final{display:flex;gap:6vw;margin-top:3vh;font-size:8vh}
+.final{display:flex;margin-top:3vh;font-size:8vh}
+.final span{margin:0 3vw}
 .final .a{color:var(--p1)}.final .b{color:var(--p2)}
 .reason{font-size:4vh;color:#C9C0F2;margin-top:1.5vh;font-family:Arial,sans-serif;font-weight:700}
 .confetti{position:absolute;top:-5vh;width:1.4vw;height:2.6vh;border-radius:.4vh;opacity:.95;animation:fall linear forwards}
 
+/* ---------- touch tester (test build) ---------- */
+#dbg{position:fixed;left:1vw;bottom:1vh;z-index:50;font:bold 2.2vh Arial,sans-serif;color:#FFC929;background:rgba(0,0,0,.6);padding:.6vh 1vw;border-radius:1vh;pointer-events:none;max-width:60vw}
+.tdot{position:fixed;z-index:60;width:6vh;height:6vh;margin:-3vh 0 0 -3vh;border-radius:50%;border:.6vh solid #FFC929;pointer-events:none;-webkit-animation:tfade 1.2s ease-out forwards;animation:tfade 1.2s ease-out forwards}
+@-webkit-keyframes tfade{0%{-webkit-transform:scale(.4);opacity:1}100%{-webkit-transform:scale(1.6);opacity:0}}
+@keyframes tfade{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.testnote{font-size:3.4vh;color:#FFC929;margin-top:3vh;font-family:Arial,sans-serif;font-weight:700}
 @keyframes pulse{50%{transform:translateX(-50%) scale(1.08)}}
 @keyframes shake{20%{transform:translateX(-1.2vw)}40%{transform:translateX(1.2vw)}60%{transform:translateX(-.8vw)}80%{transform:translateX(.8vw)}}
 @keyframes plus{0%{opacity:0;transform:translate(-50%,2vh)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-8vh)}}
@@ -94,6 +101,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="title">MATH <span>DUEL</span></div>
     <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
     <div class="btn" id="startBtn">START</div>
+    <div class="testnote">TEST BUILD: touch anywhere — a yellow circle should appear where you hit</div>
   </div>
   <div class="overlay hidden" id="countScreen"><div class="count" id="countNum">3</div></div>
   <div class="overlay hidden" id="endScreen">
@@ -103,6 +111,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="btn wait" id="againBtn">PLAY AGAIN</div>
   </div>
 </div>
+<div id="dbg">Touch test: waiting…</div>
 
 <script>
 (function(){
@@ -313,6 +322,33 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   function clearConfetti(){
     Array.prototype.slice.call(document.querySelectorAll(".confetti")).forEach(function(c){ c.parentNode.removeChild(c); });
   }
+
+  // ---------------- touch tester (test build) ----------------
+  var counts = {}, dbg = $("dbg");
+  var chromeVer = (navigator.userAgent.match(/Chrome\/([0-9.]+)/) || [,"?"])[1];
+  function dot(x, y){
+    var d = document.createElement("div");
+    d.className = "tdot"; d.style.left = x + "px"; d.style.top = y + "px";
+    document.body.appendChild(d);
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 1300);
+  }
+  function report(type, x, y){
+    counts[type] = (counts[type]||0) + 1;
+    var parts = [];
+    for(var k in counts){ parts.push(k + ":" + counts[k]); }
+    dbg.textContent = "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
+      " | last: " + type + (x!=null ? " @" + Math.round(x) + "," + Math.round(y) : "") + " | " + parts.join(" ");
+  }
+  function watch(type){
+    document.addEventListener(type, function(e){
+      var p = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+      if(p && p.clientX != null){ dot(p.clientX, p.clientY); report(type, p.clientX, p.clientY); }
+      else { report(type); }
+    }, true);
+  }
+  ["touchstart","pointerdown","mousedown","click"].forEach(watch);
+  document.addEventListener("keydown", function(e){ report("key " + (e.keyCode||e.key)); }, true);
+  report("ready");
 
   // test hook (used only for automated checks)
   window.__md = { state:function(){ return {score:score, answers:answers, correct:correct, timeLeft:timeLeft, running:running, accepting:accepting, locked:locked}; },
