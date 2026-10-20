@@ -355,19 +355,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     var c = {h:h, box:[Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)]};
     // sanity check: every target must map back close to where it was shown
     var save = cal; cal = c;
-    for(k=0;k<raw.length;k++){ var m = mapPt(raw[k][0], raw[k][1]); if(Math.abs(m[0]-scr[k][0]) > 0.08 || Math.abs(m[1]-scr[k][1]) > 0.08){ cal = save; return null; } }
+    for(k=0;k<raw.length;k++){ var m = mapPt(raw[k][0], raw[k][1]); if(Math.abs(m[0]-scr[k][0]) > 0.12 || Math.abs(m[1]-scr[k][1]) > 0.12){ cal = save; return null; } }
     cal = save;
     return c;
   }
 
   // ---- calibration screen
   // centre first (far from people standing at the sides), then corners, then edges
-  var CAL_PTS = [[0.50,0.50],[0.12,0.15],[0.88,0.15],[0.12,0.85],[0.88,0.85]];
+  var CAL_PTS = [[0.50,0.50],[0.22,0.25],[0.78,0.25],[0.22,0.78],[0.78,0.78]];
   // where should the current target appear in the camera image? (learned from accepted targets)
   function expectRaw(t){
     var n = calRaw.length;
-    if(n === 0) return {x:t[0], y:t[1], r:0.30};
-    if(n < 3){ var d0 = [calRaw[0][0]-CAL_PTS[0][0], calRaw[0][1]-CAL_PTS[0][1]]; return {x:t[0]+d0[0], y:t[1]+d0[1], r:0.22}; }
+    if(n === 0) return {x:t[0], y:t[1], r:0.38};
+    if(n < 3){ var d0 = [calRaw[0][0]-CAL_PTS[0][0], calRaw[0][1]-CAL_PTS[0][1]]; return {x:t[0]+d0[0], y:t[1]+d0[1], r:0.30}; }
     // affine fit screen -> raw from the accepted targets
     var A = [[0,0,0],[0,0,0],[0,0,0]], bx = [0,0,0], by = [0,0,0];
     for(var k=0;k<n;k++){
@@ -376,11 +376,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     }
     var ax = solve(A, bx), ay = solve(A, by);
     if(!ax || !ay) return {x:t[0], y:t[1], r:0.30};
-    return {x:ax[0]*t[0]+ax[1]*t[1]+ax[2], y:ay[0]*t[0]+ay[1]*t[1]+ay[2], r:0.10};
+    return {x:ax[0]*t[0]+ax[1]*t[1]+ax[2], y:ay[0]*t[0]+ay[1]*t[1]+ay[2], r:0.20};
   }
   var calibrating = false, calStep = 0, calRaw = [], calLast = 0, calCand = null;
   function startCalibration(){
-    calibrating = true; calStep = 0; calRaw = [];
+    calibrating = true; calStep = 0; calRaw = []; calCand = null; calLast = 0;
     $("startScreen").classList.add("hidden");
     $("calScreen").classList.remove("hidden");
     showCalTarget();
@@ -388,24 +388,47 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   function showCalTarget(){
     var p = CAL_PTS[calStep], t = $("calTarget");
     t.style.left = (p[0]*100) + "vw"; t.style.top = (p[1]*100) + "vh";
-    $("calText").textContent = "CALIBRATION  " + (calStep+1) + " / " + CAL_PTS.length + "  —  hit the centre of the target once";
+    $("calText").textContent = "CALIBRATION  " + (calStep+1) + " / " + CAL_PTS.length + "  —  touch the target and hold 1 second  ·  OK on remote = cancel";
+  }
+  var calSeen = 0, calHist = [];
+  // a spot that was already sending signals before this moment is a person standing there, not a touch
+  function isBackground(x, y, now){
+    var n = 0;
+    for(var i=0;i<calHist.length;i++){
+      var h = calHist[i];
+      if(h.t > now - 1500 && h.t < now - 400 && Math.abs(h.x - x) < 0.06 && Math.abs(h.y - y) < 0.06) n++;
+    }
+    return n >= 3;
   }
   function calHit(rx, ry){
     var now = Date.now();
-    if(now - calLast < 900) return;                 // one hit per target
+    calSeen++;
+    calFeedback(rx, ry);                             // show what the camera sees
+    calHist.push({x:rx, y:ry, t:now});
+    while(calHist.length && calHist[0].t < now - 2000) calHist.shift();
+    if(now - calLast < 700) return;                  // one hit per target
     var e = expectRaw(CAL_PTS[calStep]), dx = rx - e.x, dy = ry - e.y;
-    if(Math.sqrt(dx*dx + dy*dy) > e.r) return;      // not where this target should be: noise / people
-    // must be seen in 3 frames close together (drops flicker noise)
-    if(!calCand || now - calCand.t > 300 || Math.abs(calCand.x - rx) > 0.04 || Math.abs(calCand.y - ry) > 0.04){ calCand = {x:rx, y:ry, t:now, n:1}; return; }
-    calCand.n++; calCand.t = now;
-    if(calCand.n < 3) return;
-    rx = calCand.x; ry = calCand.y;
-    calCand = null;
-    calLast = now;
-    calRaw.push([rx, ry]);
-    sfx.good();
-    calStep++;
-    if(calStep < CAL_PTS.length){ showCalTarget(); return; }
+    if(Math.sqrt(dx*dx + dy*dy) > e.r) return;       // far from where this target should be
+    if(isBackground(rx, ry, now)) return;            // someone standing there, not a new touch
+    // collect this touch for 150 ms (one frame is enough), keep the part nearest the target
+    if(calCand){ calCand.pts.push([rx, ry]); return; }
+    calCand = {pts:[[rx, ry]], e:e};
+    setTimeout(function(){
+      if(!calCand || !calibrating) return;
+      var pts = calCand.pts, ex = calCand.e, best = pts[0], bd = 9;
+      for(var i=0;i<pts.length;i++){ var d = Math.hypot(pts[i][0]-ex.x, pts[i][1]-ex.y); if(d < bd){ bd = d; best = pts[i]; } }
+      var sx = 0, sy = 0, n = 0;
+      for(var j=0;j<pts.length;j++) if(Math.abs(pts[j][0]-best[0]) < 0.05 && Math.abs(pts[j][1]-best[1]) < 0.05){ sx += pts[j][0]; sy += pts[j][1]; n++; }
+      calCand = null;
+      calLast = Date.now();
+      calRaw.push([sx/n, sy/n]);
+      sfx.good();
+      calStep++;
+      if(calStep < CAL_PTS.length){ showCalTarget(); return; }
+      finishCalibration();
+    }, 150);
+  }
+  function finishCalibration(){
     var c = fit(calRaw, CAL_PTS);
     calibrating = false;
     $("calScreen").classList.add("hidden");
@@ -413,6 +436,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(c){ cal = c; save(CAL_KEY, JSON.stringify(c)); }
     showCalStatus(c ? "Calibration saved ✓" : "Calibration failed — try again");
     startFocus = c ? 0 : 1; paintFocus();
+  }
+  function cancelCalibration(){
+    calibrating = false; calCand = null;
+    $("calScreen").classList.add("hidden");
+    $("startScreen").classList.remove("hidden");
+    showCalStatus(cal ? "Calibration cancelled — old calibration kept" : null);
+  }
+  // small dot where the camera currently detects something (before correction)
+  function calFeedback(rx, ry){
+    var d = document.createElement("div");
+    d.className = "sdot";
+    d.style.left = (rx*100) + "vw"; d.style.top = (ry*100) + "vh";
+    $("calScreen").appendChild(d);
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 600);
   }
   function showCalStatus(msg){
     var el = $("calStatus");
@@ -510,7 +547,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(onStart && (k === 37 || k === 38)){ startFocus = (startFocus + 2) % 3; paintFocus(); return; }
     if(k === 13 || k === 23 || k === 32 || e.key === "Enter"){
       audio();
-      if(calibrating) return;
+      if(calibrating){ cancelCalibration(); return; }
       if(onStart){ if(startFocus === 0) countdown(); else if(startFocus === 1) startCalibration(); else startSensorView(); }
       else if(!$("endScreen").classList.contains("hidden") && againReady) countdown();
     }
