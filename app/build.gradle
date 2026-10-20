@@ -10,8 +10,8 @@ android {
         applicationId "com.wallgames.mathduel"
         minSdk 21
         targetSdk 34
-        versionCode 9
-        versionName "1.8-test"
+        versionCode 10
+        versionName "1.9-test"
     }
 
     buildTypes {

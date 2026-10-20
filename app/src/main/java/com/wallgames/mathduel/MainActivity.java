@@ -9,6 +9,8 @@ import java.util.Locale;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.content.ComponentName;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -84,6 +86,21 @@ public class MainActivity extends Activity {
         hideSystemBars();
     }
 
+    /**
+     * The wall camera is processed by the supplier's "Capture_S" app (com.myt.mytclient).
+     * Its CameraService is exported and normally only started when a supplier game is
+     * launched; we start it ourselves so the wall works without opening a supplier game.
+     */
+    private void startWallCamera() {
+        try {
+            Intent i = new Intent();
+            i.setComponent(new ComponentName("com.myt.mytclient", "com.myt.mytclient.camera.CameraService"));
+            startService(i);
+        } catch (Throwable t) {
+            // Capture_S not installed or blocked: the wall simply won't send hits
+        }
+    }
+
     /** Lets the game save settings (e.g. wall calibration) that survive restarts. */
     private class AppStore {
         private SharedPreferences prefs() { return getSharedPreferences("mathduel", MODE_PRIVATE); }
@@ -122,6 +139,7 @@ public class MainActivity extends Activity {
         if (web != null) {
             web.onResume();
         }
+        startWallCamera();
         if (tuio != null) {
             tuio.start();
         }
