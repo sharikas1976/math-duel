@@ -73,6 +73,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .btnrow .btn{margin-left:1.5vw;margin-right:1.5vw}
 .sdot{position:absolute;width:2.4vh;height:2.4vh;margin:-1.2vh 0 0 -1.2vh;border-radius:50%;background:#16CFF2;opacity:.9;pointer-events:none}
 .sdot.out{background:#FF3B5C}
+.calstatus.warn{color:#FFC929;font-size:4vh}
 .calstatus{margin-top:2.5vh;font-size:3.2vh;color:#C9C0F2;font-family:Arial,sans-serif;font-weight:700}
 .caltext{position:absolute;top:4vh;left:0;right:0;text-align:center;font-size:4.5vh;color:#FFC929}
 #calTarget{position:absolute;width:14vh;height:14vh;margin:-7vh 0 0 -7vh;border-radius:50%;border:1.2vh solid #FFC929;animation:bob 1.2s ease-in-out infinite}
@@ -134,7 +135,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   // ---------------- settings ----------------
   var WIN_SCORE   = 10;     // first to this many wins
   var GAME_SECS   = 180;    // 3 minutes
-  var LOCK_MS     = 1200;   // pause for a player who hits the wrong answer
+  var LOCK_MS     = 800;    // pause for a player who hits the wrong answer
   var NEXT_MS     = 1100;   // pause showing the answer before the next question
   var DEBOUNCE_MS = 250;    // ignore double-hits from the sensor
   var AGAIN_DELAY = 3000;   // "Play again" becomes active after this
@@ -269,13 +270,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   //   4) target check (only the answer squares and buttons react).
   var MERGE_DIST = 0.07;   // repeats closer than this (fraction of screen) are the same touch
   var MERGE_MS   = 450;    // a touch must leave for this long before it can count again
-  var CONFIRM    = 3;      // a touch must be seen in this many camera frames (drops noise)
+  var CONFIRM    = 2;      // a touch must be seen in this many camera frames (drops noise)
   var EDGE       = 0.03;   // ignore the very edges
   var wallHits = 0, wallRaw = 0, contactsList = [], ghostBlocked = 0;
 
   // ---- settle time: the camera sees screen changes as "hits", so after a side
   //      changes (new question, wrong flash ends) it ignores hits for a moment
-  var SETTLE_MS = 1000, settleUntil = {1:0, 2:0};
+  var SETTLE_MS = 500, settleUntil = {1:0, 2:0};
   function settle(p){ settleUntil[p] = Date.now() + SETTLE_MS; }
 
   // ---- hotspot filter: a spot that fires in most of the last 12 seconds is a
@@ -361,7 +362,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 
   // ---- calibration screen
   // centre first (far from people standing at the sides), then corners, then edges
-  var CAL_PTS = [[0.50,0.50],[0.15,0.18],[0.85,0.18],[0.15,0.82],[0.85,0.82],[0.50,0.18],[0.15,0.50],[0.85,0.50],[0.50,0.82]];
+  var CAL_PTS = [[0.50,0.50],[0.12,0.15],[0.88,0.15],[0.12,0.85],[0.88,0.85]];
   // where should the current target appear in the camera image? (learned from accepted targets)
   function expectRaw(t){
     var n = calRaw.length;
@@ -411,8 +412,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     $("startScreen").classList.remove("hidden");
     if(c){ cal = c; save(CAL_KEY, JSON.stringify(c)); }
     showCalStatus(c ? "Calibration saved ✓" : "Calibration failed — try again");
+    startFocus = c ? 0 : 1; paintFocus();
   }
-  function showCalStatus(msg){ $("calStatus").textContent = msg || (cal ? "Calibrated ✓" : "Not calibrated yet — press CALIBRATE once"); }
+  function showCalStatus(msg){
+    var el = $("calStatus");
+    el.textContent = msg || (cal ? "Calibrated ✓" : "⚠ NOT CALIBRATED — press CALIBRATE first for accurate hits");
+    el.classList.toggle("warn", !cal);
+  }
   showCalStatus();
 
   // ---- SENSOR VIEW: shows every raw signal from the camera (to find ghost sources)
@@ -491,7 +497,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   window.tuioStatus = function(t){ tuioText = t; report("tuio"); };
 
   // ---- remote control: arrows choose START / CALIBRATE, OK presses it
-  var startFocus = 0, FOCUS_IDS = ["startBtn", "calBtn", "sensorBtn"];
+  var startFocus = cal ? 0 : 1, FOCUS_IDS = ["startBtn", "calBtn", "sensorBtn"];
   function paintFocus(){
     for(var i=0;i<FOCUS_IDS.length;i++) $(FOCUS_IDS[i]).classList.toggle("focus", startFocus === i);
   }
