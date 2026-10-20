@@ -68,6 +68,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .tdot{position:fixed;z-index:60;width:6vh;height:6vh;margin:-3vh 0 0 -3vh;border-radius:50%;border:.6vh solid #FFC929;pointer-events:none;-webkit-animation:tfade 1.2s ease-out forwards;animation:tfade 1.2s ease-out forwards}
 @-webkit-keyframes tfade{0%{-webkit-transform:scale(.4);opacity:1}100%{-webkit-transform:scale(1.6);opacity:0}}
 @keyframes tfade{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.btn.small{margin-top:3vh;height:13vh;min-width:26vw;font-size:5vh;background:#5D5680;color:#fff;animation:none;box-shadow:0 .8vh 0 rgba(0,0,0,.35)}
+.btn.focus{outline:.8vh solid #FFC929;outline-offset:.6vh}
+.calstatus{margin-top:2.5vh;font-size:3.2vh;color:#C9C0F2;font-family:Arial,sans-serif;font-weight:700}
+.caltext{position:absolute;top:4vh;left:0;right:0;text-align:center;font-size:4.5vh;color:#FFC929}
+#calTarget{position:absolute;width:14vh;height:14vh;margin:-7vh 0 0 -7vh;border-radius:50%;border:1.2vh solid #FFC929;animation:bob 1.2s ease-in-out infinite}
+#calTarget i{position:absolute;left:50%;top:50%;width:3vh;height:3vh;margin:-1.5vh 0 0 -1.5vh;border-radius:50%;background:#FF2E93}
 .testnote{font-size:3.4vh;color:#FFC929;margin-top:3vh;font-family:Arial,sans-serif;font-weight:700}
 @keyframes pulse{50%{transform:translateX(-50%) scale(1.08)}}
 @keyframes shake{20%{transform:translateX(-1.2vw)}40%{transform:translateX(1.2vw)}60%{transform:translateX(-.8vw)}80%{transform:translateX(.8vw)}}
@@ -101,7 +107,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="title">MATH <span>DUEL</span></div>
     <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
     <div class="btn" id="startBtn">START</div>
-    <div class="testnote">TEST BUILD: hit the wall — a yellow circle should appear where you hit</div>
+    <div class="btn small" id="calBtn">CALIBRATE</div>
+    <div class="calstatus" id="calStatus"></div>
+  </div>
+  <div class="overlay hidden" id="calScreen">
+    <div class="caltext" id="calText">CALIBRATION</div>
+    <div id="calTarget"><i></i></div>
   </div>
   <div class="overlay hidden" id="countScreen"><div class="count" id="countNum">3</div></div>
   <div class="overlay hidden" id="endScreen">
@@ -245,44 +256,156 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   }
   onButton($("startBtn"), function(){ if(!running) countdown(); });
   onButton($("againBtn"), function(){ if(againReady) countdown(); });
+  onButton($("calBtn"), function(){ if(!running && !calibrating) startCalibration(); });
   // ---------------- wall hits from the IR camera (TUIO, delivered by the Android app) ----------------
-  // nx, ny are 0..1 positions on the projected image
-  // The camera app re-sends a resting hand/ball as a "new" contact every frame,
-  // so repeats close in space and time are merged into ONE touch.
-  var MERGE_DIST = 0.07;   // fraction of screen (about 7%)
-  var MERGE_MS   = 450;    // a touch must leave for this long before it counts again
-  var EDGE       = 0.03;   // ignore sensor noise at the very edges
-  var wallHits = 0, wallRaw = 0, recent = [];
-  window.wallHit = function(nx, ny, id){
-    wallRaw++;
-    if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
-    var now = Date.now(), aspect = window.innerWidth / window.innerHeight;
-    recent = recent.filter(function(r){ return now - r.t < MERGE_MS; });
-    for(var i=0;i<recent.length;i++){
-      var dx = (recent[i].x - nx) * aspect, dy = recent[i].y - ny;
-      if(Math.sqrt(dx*dx + dy*dy) < MERGE_DIST){ recent[i].t = now; recent[i].x = nx; recent[i].y = ny; return; }
+  // nx, ny arrive as 0..1 positions from the camera. They go through:
+  //   1) calibration (corrects the camera's offset/stretch), 2) edge filter,
+  //   3) contact tracking (one touch = one tap, single-frame flickers dropped),
+  //   4) target check (only the answer squares and buttons react).
+  var MERGE_DIST = 0.07;   // repeats closer than this (fraction of screen) are the same touch
+  var MERGE_MS   = 450;    // a touch must leave for this long before it can count again
+  var CONFIRM    = 2;      // a touch must be seen in this many camera frames (drops noise)
+  var EDGE       = 0.03;   // ignore the very edges
+  var wallHits = 0, wallRaw = 0, contactsList = [];
+
+  // ---- saved settings (Android app storage, browser storage as fallback)
+  function load(key){
+    try{ if(window.AppStore) return window.AppStore.load(key); }catch(e){}
+    try{ return localStorage.getItem(key); }catch(e){ return null; }
+  }
+  function save(key, val){
+    try{ if(window.AppStore){ window.AppStore.save(key, val); return; } }catch(e){}
+    try{ localStorage.setItem(key, val); }catch(e){}
+  }
+
+  // ---- calibration: quadratic fit  screen = f(raw)  from 9 target points
+  var CAL_KEY = "mathduel_cal_v1";
+  var cal = null;
+  try{ cal = JSON.parse(load(CAL_KEY) || "null"); }catch(e){ cal = null; }
+  function terms(x, y){ return [1, x, y, x*x, x*y, y*y]; }
+  function mapPt(x, y){
+    if(!cal) return [x, y];
+    var t = terms(x, y), mx = 0, my = 0;
+    for(var i=0;i<6;i++){ mx += cal.ax[i]*t[i]; my += cal.ay[i]*t[i]; }
+    return [mx, my];
+  }
+  function solve(A, b){ // Gaussian elimination, A is n x n
+    var n = b.length, M = A.map(function(r, i){ return r.concat([b[i]]); });
+    for(var c=0;c<n;c++){
+      var piv = c;
+      for(var r=c+1;r<n;r++) if(Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+      var tmp = M[c]; M[c] = M[piv]; M[piv] = tmp;
+      if(Math.abs(M[c][c]) < 1e-12) return null;
+      for(var r2=0;r2<n;r2++){
+        if(r2 === c) continue;
+        var f = M[r2][c] / M[c][c];
+        for(var k=c;k<=n;k++) M[r2][k] -= f * M[c][k];
+      }
     }
-    recent.push({x:nx, y:ny, t:now});
-    var x = nx * window.innerWidth, y = ny * window.innerHeight;
-    wallHits++;
-    dot(x, y);
+    return M.map(function(r, i){ return r[n] / r[i]; });
+  }
+  function fit(raw, scr){ // least squares on 6 terms
+    var AtA = [], Atx = [0,0,0,0,0,0], Aty = [0,0,0,0,0,0], i, j, k;
+    for(i=0;i<6;i++){ AtA.push([0,0,0,0,0,0]); }
+    for(k=0;k<raw.length;k++){
+      var t = terms(raw[k][0], raw[k][1]);
+      for(i=0;i<6;i++){ Atx[i] += t[i]*scr[k][0]; Aty[i] += t[i]*scr[k][1]; for(j=0;j<6;j++) AtA[i][j] += t[i]*t[j]; }
+    }
+    var ax = solve(AtA, Atx), ay = solve(AtA, Aty);
+    return (ax && ay) ? {ax:ax, ay:ay} : null;
+  }
+
+  // ---- calibration screen
+  var CAL_PTS = [[0.15,0.18],[0.50,0.18],[0.85,0.18],[0.15,0.50],[0.50,0.50],[0.85,0.50],[0.15,0.82],[0.50,0.82],[0.85,0.82]];
+  var calibrating = false, calStep = 0, calRaw = [], calLast = 0;
+  function startCalibration(){
+    calibrating = true; calStep = 0; calRaw = [];
+    $("startScreen").classList.add("hidden");
+    $("calScreen").classList.remove("hidden");
+    showCalTarget();
+  }
+  function showCalTarget(){
+    var p = CAL_PTS[calStep], t = $("calTarget");
+    t.style.left = (p[0]*100) + "vw"; t.style.top = (p[1]*100) + "vh";
+    $("calText").textContent = "CALIBRATION  " + (calStep+1) + " / " + CAL_PTS.length + "  —  hit the centre of the target once";
+  }
+  function calHit(rx, ry){
+    var now = Date.now();
+    if(now - calLast < 700) return;                 // one hit per target
+    var p = CAL_PTS[calStep], dx = rx - p[0], dy = ry - p[1];
+    if(Math.sqrt(dx*dx + dy*dy) > 0.22) return;     // too far from the target: noise
+    calLast = now;
+    calRaw.push([rx, ry]);
+    sfx.good();
+    calStep++;
+    if(calStep < CAL_PTS.length){ showCalTarget(); return; }
+    var c = fit(calRaw, CAL_PTS);
+    calibrating = false;
+    $("calScreen").classList.add("hidden");
+    $("startScreen").classList.remove("hidden");
+    if(c){ cal = c; save(CAL_KEY, JSON.stringify(c)); }
+    showCalStatus(c ? "Calibration saved ✓" : "Calibration failed — try again");
+  }
+  function showCalStatus(msg){ $("calStatus").textContent = msg || (cal ? "Calibrated ✓" : "Not calibrated yet — press CALIBRATE once"); }
+  showCalStatus();
+
+  // ---- what a wall touch may activate (nothing else reacts)
+  function targetAt(x, y){
     var el = document.elementFromPoint(x, y);
     while(el && el !== document.body){
-      if(el.classList && el.classList.contains("ans")){ hitBox(el); return; }
-      if(el.id === "startBtn"){ audio(); if(!running) countdown(); return; }
-      if(el.id === "againBtn"){ audio(); if(againReady) countdown(); return; }
+      if(el.classList && el.classList.contains("ans")) return el;
+      if(el.id === "startBtn" || el.id === "againBtn" || el.id === "calBtn") return el;
       el = el.parentNode;
     }
+    return null;
+  }
+  function activate(el){
+    if(el.id === "startBtn"){ audio(); if(!running) countdown(); }
+    else if(el.id === "againBtn"){ audio(); if(againReady) countdown(); }
+    else if(el.id === "calBtn"){ audio(); if(!running) startCalibration(); }
+    else if(running){ hitBox(el); }
+  }
+
+  window.wallHit = function(rx, ry, id){
+    wallRaw++;
+    if(calibrating){ calHit(rx, ry); return; }
+    var m = mapPt(rx, ry), nx = m[0], ny = m[1];
+    if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
+    var now = Date.now(), aspect = window.innerWidth / window.innerHeight, c = null;
+    contactsList = contactsList.filter(function(r){ return now - r.t < MERGE_MS; });
+    for(var i=0;i<contactsList.length;i++){
+      var dx = (contactsList[i].x - nx) * aspect, dy = contactsList[i].y - ny;
+      if(Math.sqrt(dx*dx + dy*dy) < MERGE_DIST){ c = contactsList[i]; break; }
+    }
+    if(c){ c.t = now; c.n++; c.x = nx; c.y = ny; }
+    else { c = {x:nx, y:ny, t:now, n:1, fired:false}; contactsList.push(c); }
+    if(c.fired || c.n < CONFIRM) return;
+    c.fired = true;
+    var x = nx * window.innerWidth, y = ny * window.innerHeight;
+    var el = targetAt(x, y);
+    if(!el) return;                 // outside the squares/buttons: ignored, no circle
+    wallHits++;
+    dot(x, y);
+    activate(el);
   };
   var tuioText = "";
   window.tuioStatus = function(t){ tuioText = t; report("tuio"); };
 
-  // remote control: OK / Enter starts or restarts
+  // ---- remote control: arrows choose START / CALIBRATE, OK presses it
+  var startFocus = 0;
+  function paintFocus(){
+    $("startBtn").classList.toggle("focus", startFocus === 0);
+    $("calBtn").classList.toggle("focus", startFocus === 1);
+  }
+  paintFocus();
   document.addEventListener("keydown", function(e){
-    var k = e.key || e.keyCode;
-    if(k==="Enter" || k===13 || k===23 || k===" "){
+    var k = e.keyCode;
+    var onStart = !$("startScreen").classList.contains("hidden");
+    if(onStart && (k === 37 || k === 38 || k === 39 || k === 40)){ startFocus = 1 - startFocus; paintFocus(); return; }
+    if(k === 13 || k === 23 || k === 32 || e.key === "Enter"){
       audio();
-      if(!$("startScreen").classList.contains("hidden")) countdown();
+      if(calibrating) return;
+      if(onStart){ if(startFocus === 0) countdown(); else startCalibration(); }
       else if(!$("endScreen").classList.contains("hidden") && againReady) countdown();
     }
   });

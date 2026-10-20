@@ -9,6 +9,8 @@ import java.util.Locale;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.content.SharedPreferences;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -74,11 +76,23 @@ public class MainActivity extends Activity {
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setBackgroundColor(0xFF140A3E);
 
+        web.addJavascriptInterface(new AppStore(), "AppStore");
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
         tuio = new TuioReceiver(wallListener);
         web.requestFocus();
         hideSystemBars();
+    }
+
+    /** Lets the game save settings (e.g. wall calibration) that survive restarts. */
+    private class AppStore {
+        private SharedPreferences prefs() { return getSharedPreferences("mathduel", MODE_PRIVATE); }
+
+        @JavascriptInterface
+        public String load(String key) { return prefs().getString(key, null); }
+
+        @JavascriptInterface
+        public void save(String key, String value) { prefs().edit().putString(key, value).apply(); }
     }
 
     private void hideSystemBars() {
