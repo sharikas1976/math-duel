@@ -69,6 +69,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 @keyframes tfade{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
 .btn.small{margin-top:3vh;height:13vh;min-width:26vw;font-size:5vh;background:#5D5680;color:#fff;animation:none;box-shadow:0 .8vh 0 rgba(0,0,0,.35)}
 .btn.focus{outline:.8vh solid #FFC929;outline-offset:.6vh}
+.btnrow{display:flex}
+.btnrow .btn{margin-left:1.5vw;margin-right:1.5vw}
+.sdot{position:absolute;width:2.4vh;height:2.4vh;margin:-1.2vh 0 0 -1.2vh;border-radius:50%;background:#16CFF2;opacity:.9;pointer-events:none}
+.sdot.out{background:#FF3B5C}
 .calstatus{margin-top:2.5vh;font-size:3.2vh;color:#C9C0F2;font-family:Arial,sans-serif;font-weight:700}
 .caltext{position:absolute;top:4vh;left:0;right:0;text-align:center;font-size:4.5vh;color:#FFC929}
 #calTarget{position:absolute;width:14vh;height:14vh;margin:-7vh 0 0 -7vh;border-radius:50%;border:1.2vh solid #FFC929;animation:bob 1.2s ease-in-out infinite}
@@ -106,13 +110,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="title">MATH <span>DUEL</span></div>
     <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
     <div class="btn" id="startBtn">START</div>
-    <div class="btn small" id="calBtn">CALIBRATE</div>
+    <div class="btnrow"><div class="btn small" id="calBtn">CALIBRATE</div><div class="btn small" id="sensorBtn">SENSOR VIEW</div></div>
     <div class="calstatus" id="calStatus"></div>
   </div>
   <div class="overlay hidden" id="calScreen">
     <div class="caltext" id="calText">CALIBRATION</div>
     <div id="calTarget"><i></i></div>
   </div>
+  <div class="overlay hidden" id="sensorScreen"><div class="caltext" id="sensorText">SENSOR VIEW</div></div>
   <div class="overlay hidden" id="countScreen"><div class="count" id="countNum">3</div></div>
   <div class="overlay hidden" id="endScreen">
     <div class="win" id="winText">PLAYER 1 WINS!</div>
@@ -229,7 +234,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
       sfx.good();
       updateScores(p);
       $("question").classList.add("reveal");
-      boxes.forEach(function(x){ var xp=+x.getAttribute("data-p"), xi=+x.getAttribute("data-i"); if(answers[xp][xi]===correct) x.classList.add("good"); });
       if(score[p] >= WIN_SCORE){ setTimeout(function(){ endGame("first to " + WIN_SCORE); }, 700); }
       else { setTimeout(function(){ if(running) nextQuestion(); }, NEXT_MS); }
     } else {
@@ -265,13 +269,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   //   4) target check (only the answer squares and buttons react).
   var MERGE_DIST = 0.07;   // repeats closer than this (fraction of screen) are the same touch
   var MERGE_MS   = 450;    // a touch must leave for this long before it can count again
-  var CONFIRM    = 2;      // a touch must be seen in this many camera frames (drops noise)
+  var CONFIRM    = 3;      // a touch must be seen in this many camera frames (drops noise)
   var EDGE       = 0.03;   // ignore the very edges
   var wallHits = 0, wallRaw = 0, contactsList = [], ghostBlocked = 0;
 
   // ---- settle time: the camera sees screen changes as "hits", so after a side
   //      changes (new question, wrong flash ends) it ignores hits for a moment
-  var SETTLE_MS = 550, settleUntil = {1:0, 2:0};
+  var SETTLE_MS = 1000, settleUntil = {1:0, 2:0};
   function settle(p){ settleUntil[p] = Date.now() + SETTLE_MS; }
 
   // ---- hotspot filter: a spot that fires in most of the last 12 seconds is a
@@ -305,15 +309,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   }
 
   // ---- calibration: quadratic fit  screen = f(raw)  from 9 target points
-  var CAL_KEY = "mathduel_cal_v1";
+  var CAL_KEY = "mathduel_cal_v2";
   var cal = null;
   try{ cal = JSON.parse(load(CAL_KEY) || "null"); }catch(e){ cal = null; }
-  function terms(x, y){ return [1, x, y, x*x, x*y, y*y]; }
+  // camera -> screen is a perspective transform (homography) for a flat wall
   function mapPt(x, y){
     if(!cal) return [x, y];
-    var t = terms(x, y), mx = 0, my = 0;
-    for(var i=0;i<6;i++){ mx += cal.ax[i]*t[i]; my += cal.ay[i]*t[i]; }
-    return [mx, my];
+    var h = cal.h, w = h[6]*x + h[7]*y + 1;
+    return [(h[0]*x + h[1]*y + h[2]) / w, (h[3]*x + h[4]*y + h[5]) / w];
+  }
+  // reject signals from outside the calibrated part of the camera image
+  function inCalArea(x, y){
+    if(!cal) return true;
+    var b = cal.box, mx = (b[2]-b[0])*0.15, my = (b[3]-b[1])*0.15;
+    return x >= b[0]-mx && x <= b[2]+mx && y >= b[1]-my && y <= b[3]+my;
   }
   function solve(A, b){ // Gaussian elimination, A is n x n
     var n = b.length, M = A.map(function(r, i){ return r.concat([b[i]]); });
@@ -330,20 +339,45 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     }
     return M.map(function(r, i){ return r[n] / r[i]; });
   }
-  function fit(raw, scr){ // least squares on 6 terms
-    var AtA = [], Atx = [0,0,0,0,0,0], Aty = [0,0,0,0,0,0], i, j, k;
-    for(i=0;i<6;i++){ AtA.push([0,0,0,0,0,0]); }
+  function fit(raw, scr){ // least-squares homography from the 9 target points
+    var AtA = [], Atb = [0,0,0,0,0,0,0,0], i, j, k;
+    for(i=0;i<8;i++) AtA.push([0,0,0,0,0,0,0,0]);
+    function add(row, b){ for(i=0;i<8;i++){ Atb[i] += row[i]*b; for(j=0;j<8;j++) AtA[i][j] += row[i]*row[j]; } }
     for(k=0;k<raw.length;k++){
-      var t = terms(raw[k][0], raw[k][1]);
-      for(i=0;i<6;i++){ Atx[i] += t[i]*scr[k][0]; Aty[i] += t[i]*scr[k][1]; for(j=0;j<6;j++) AtA[i][j] += t[i]*t[j]; }
+      var x = raw[k][0], y = raw[k][1], u = scr[k][0], v = scr[k][1];
+      add([x, y, 1, 0, 0, 0, -x*u, -y*u], u);
+      add([0, 0, 0, x, y, 1, -x*v, -y*v], v);
     }
-    var ax = solve(AtA, Atx), ay = solve(AtA, Aty);
-    return (ax && ay) ? {ax:ax, ay:ay} : null;
+    var h = solve(AtA, Atb);
+    if(!h) return null;
+    var xs = raw.map(function(r){ return r[0]; }), ys = raw.map(function(r){ return r[1]; });
+    var c = {h:h, box:[Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)]};
+    // sanity check: every target must map back close to where it was shown
+    var save = cal; cal = c;
+    for(k=0;k<raw.length;k++){ var m = mapPt(raw[k][0], raw[k][1]); if(Math.abs(m[0]-scr[k][0]) > 0.08 || Math.abs(m[1]-scr[k][1]) > 0.08){ cal = save; return null; } }
+    cal = save;
+    return c;
   }
 
   // ---- calibration screen
-  var CAL_PTS = [[0.15,0.18],[0.50,0.18],[0.85,0.18],[0.15,0.50],[0.50,0.50],[0.85,0.50],[0.15,0.82],[0.50,0.82],[0.85,0.82]];
-  var calibrating = false, calStep = 0, calRaw = [], calLast = 0;
+  // centre first (far from people standing at the sides), then corners, then edges
+  var CAL_PTS = [[0.50,0.50],[0.15,0.18],[0.85,0.18],[0.15,0.82],[0.85,0.82],[0.50,0.18],[0.15,0.50],[0.85,0.50],[0.50,0.82]];
+  // where should the current target appear in the camera image? (learned from accepted targets)
+  function expectRaw(t){
+    var n = calRaw.length;
+    if(n === 0) return {x:t[0], y:t[1], r:0.30};
+    if(n < 3){ var d0 = [calRaw[0][0]-CAL_PTS[0][0], calRaw[0][1]-CAL_PTS[0][1]]; return {x:t[0]+d0[0], y:t[1]+d0[1], r:0.22}; }
+    // affine fit screen -> raw from the accepted targets
+    var A = [[0,0,0],[0,0,0],[0,0,0]], bx = [0,0,0], by = [0,0,0];
+    for(var k=0;k<n;k++){
+      var v = [CAL_PTS[k][0], CAL_PTS[k][1], 1];
+      for(var i=0;i<3;i++){ bx[i] += v[i]*calRaw[k][0]; by[i] += v[i]*calRaw[k][1]; for(var j=0;j<3;j++) A[i][j] += v[i]*v[j]; }
+    }
+    var ax = solve(A, bx), ay = solve(A, by);
+    if(!ax || !ay) return {x:t[0], y:t[1], r:0.30};
+    return {x:ax[0]*t[0]+ax[1]*t[1]+ax[2], y:ay[0]*t[0]+ay[1]*t[1]+ay[2], r:0.10};
+  }
+  var calibrating = false, calStep = 0, calRaw = [], calLast = 0, calCand = null;
   function startCalibration(){
     calibrating = true; calStep = 0; calRaw = [];
     $("startScreen").classList.add("hidden");
@@ -357,9 +391,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   }
   function calHit(rx, ry){
     var now = Date.now();
-    if(now - calLast < 700) return;                 // one hit per target
-    var p = CAL_PTS[calStep], dx = rx - p[0], dy = ry - p[1];
-    if(Math.sqrt(dx*dx + dy*dy) > 0.22) return;     // too far from the target: noise
+    if(now - calLast < 900) return;                 // one hit per target
+    var e = expectRaw(CAL_PTS[calStep]), dx = rx - e.x, dy = ry - e.y;
+    if(Math.sqrt(dx*dx + dy*dy) > e.r) return;      // not where this target should be: noise / people
+    // must be seen in 3 frames close together (drops flicker noise)
+    if(!calCand || now - calCand.t > 300 || Math.abs(calCand.x - rx) > 0.04 || Math.abs(calCand.y - ry) > 0.04){ calCand = {x:rx, y:ry, t:now, n:1}; return; }
+    calCand.n++; calCand.t = now;
+    if(calCand.n < 3) return;
+    rx = calCand.x; ry = calCand.y;
+    calCand = null;
     calLast = now;
     calRaw.push([rx, ry]);
     sfx.good();
@@ -375,12 +415,38 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   function showCalStatus(msg){ $("calStatus").textContent = msg || (cal ? "Calibrated ✓" : "Not calibrated yet — press CALIBRATE once"); }
   showCalStatus();
 
+  // ---- SENSOR VIEW: shows every raw signal from the camera (to find ghost sources)
+  var sensorView = false, sensorCount = 0, sensorTimer = null;
+  function startSensorView(){
+    sensorView = true; sensorCount = 0;
+    $("startScreen").classList.add("hidden");
+    $("sensorScreen").classList.remove("hidden");
+    clearInterval(sensorTimer);
+    sensorTimer = setInterval(function(){
+      $("sensorText").textContent = "SENSOR VIEW — " + sensorCount + " signals/second" + (cal ? " (calibrated)" : " (not calibrated)") + "  ·  press OK to exit";
+      sensorCount = 0;
+    }, 1000);
+  }
+  function stopSensorView(){
+    sensorView = false; clearInterval(sensorTimer);
+    $("sensorScreen").classList.add("hidden");
+    $("startScreen").classList.remove("hidden");
+  }
+  function sensorDot(rx, ry){
+    sensorCount++;
+    var m = mapPt(rx, ry), d = document.createElement("div");
+    d.className = "sdot" + (inCalArea(rx, ry) ? "" : " out");
+    d.style.left = (m[0]*100) + "vw"; d.style.top = (m[1]*100) + "vh";
+    $("sensorScreen").appendChild(d);
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 1500);
+  }
+
   // ---- what a wall touch may activate (nothing else reacts)
   function targetAt(x, y){
     var el = document.elementFromPoint(x, y);
     while(el && el !== document.body){
       if(el.classList && el.classList.contains("ans")) return el;
-      if(el.id === "startBtn" || el.id === "againBtn" || el.id === "calBtn") return el;
+      if(el.id === "startBtn" || el.id === "againBtn" || el.id === "calBtn" || el.id === "sensorBtn") return el;
       el = el.parentNode;
     }
     return null;
@@ -389,12 +455,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(el.id === "startBtn"){ audio(); if(!running) countdown(); }
     else if(el.id === "againBtn"){ audio(); if(againReady) countdown(); }
     else if(el.id === "calBtn"){ audio(); if(!running) startCalibration(); }
+    else if(el.id === "sensorBtn"){ audio(); if(!running) startSensorView(); }
     else if(running){ hitBox(el); }
   }
 
   window.wallHit = function(rx, ry, id){
     wallRaw++;
     if(calibrating){ calHit(rx, ry); return; }
+    if(sensorView){ sensorDot(rx, ry); return; }
+    if(!inCalArea(rx, ry)){ ghostBlocked++; return; }
     var m = mapPt(rx, ry), nx = m[0], ny = m[1];
     if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
     markCell(nx, ny);
@@ -422,20 +491,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   window.tuioStatus = function(t){ tuioText = t; report("tuio"); };
 
   // ---- remote control: arrows choose START / CALIBRATE, OK presses it
-  var startFocus = 0;
+  var startFocus = 0, FOCUS_IDS = ["startBtn", "calBtn", "sensorBtn"];
   function paintFocus(){
-    $("startBtn").classList.toggle("focus", startFocus === 0);
-    $("calBtn").classList.toggle("focus", startFocus === 1);
+    for(var i=0;i<FOCUS_IDS.length;i++) $(FOCUS_IDS[i]).classList.toggle("focus", startFocus === i);
   }
   paintFocus();
   document.addEventListener("keydown", function(e){
     var k = e.keyCode;
     var onStart = !$("startScreen").classList.contains("hidden");
-    if(onStart && (k === 37 || k === 38 || k === 39 || k === 40)){ startFocus = 1 - startFocus; paintFocus(); return; }
+    if(sensorView && (k === 13 || k === 23 || k === 32 || k === 4 || k === 27)){ stopSensorView(); return; }
+    if(onStart && (k === 39 || k === 40)){ startFocus = (startFocus + 1) % 3; paintFocus(); return; }
+    if(onStart && (k === 37 || k === 38)){ startFocus = (startFocus + 2) % 3; paintFocus(); return; }
     if(k === 13 || k === 23 || k === 32 || e.key === "Enter"){
       audio();
       if(calibrating) return;
-      if(onStart){ if(startFocus === 0) countdown(); else startCalibration(); }
+      if(onStart){ if(startFocus === 0) countdown(); else if(startFocus === 1) startCalibration(); else startSensorView(); }
       else if(!$("endScreen").classList.contains("hidden") && againReady) countdown();
     }
   });
