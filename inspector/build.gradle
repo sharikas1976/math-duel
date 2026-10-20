@@ -10,8 +10,8 @@ android {
         applicationId "com.wallgames.inspector"
         minSdk 21
         targetSdk 22   // below 23 so storage permission is granted at install (old Android 7 device)
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
     }
 
     compileOptions {

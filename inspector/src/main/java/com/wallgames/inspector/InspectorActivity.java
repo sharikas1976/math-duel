@@ -570,10 +570,21 @@ public class InspectorActivity extends Activity {
                         write(new File(dir, "wall-report.txt"), full);
                         File apks = new File(dir, "apks");
                         apks.mkdirs();
+                        // small apps first; skip the huge game files (not needed for analysis)
+                        List<ApplicationInfo> apps = new ArrayList<ApplicationInfo>();
                         for (ApplicationInfo ai : pm.getInstalledApplications(0)) {
-                            if (!interesting(ai.packageName) || ai.sourceDir == null) continue;
+                            if (interesting(ai.packageName) && ai.sourceDir != null) apps.add(ai);
+                        }
+                        java.util.Collections.sort(apps, new java.util.Comparator<ApplicationInfo>() {
+                            public int compare(ApplicationInfo x, ApplicationInfo y) {
+                                return Long.compare(new File(x.sourceDir).length(), new File(y.sourceDir).length());
+                            }
+                        });
+                        for (ApplicationInfo ai : apps) {
+                            File src = new File(ai.sourceDir);
+                            if (src.length() > 100L * 1024 * 1024) { done.append("skipped big app ").append(ai.packageName).append("\n"); continue; }
                             setStatus("Copying " + ai.packageName + " to " + dir.getAbsolutePath());
-                            copy(new File(ai.sourceDir), new File(apks, ai.packageName + ".apk"));
+                            copy(src, new File(apks, ai.packageName + ".apk"));
                         }
                         done.append(dir.getAbsolutePath()).append("\n");
                     } catch (Throwable t) {
