@@ -247,8 +247,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   onButton($("againBtn"), function(){ if(againReady) countdown(); });
   // ---------------- wall hits from the IR camera (TUIO, delivered by the Android app) ----------------
   // nx, ny are 0..1 positions on the projected image
-  var wallHits = 0;
+  // The camera app re-sends a resting hand/ball as a "new" contact every frame,
+  // so repeats close in space and time are merged into ONE touch.
+  var MERGE_DIST = 0.07;   // fraction of screen (about 7%)
+  var MERGE_MS   = 450;    // a touch must leave for this long before it counts again
+  var EDGE       = 0.03;   // ignore sensor noise at the very edges
+  var wallHits = 0, wallRaw = 0, recent = [];
   window.wallHit = function(nx, ny, id){
+    wallRaw++;
+    if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
+    var now = Date.now(), aspect = window.innerWidth / window.innerHeight;
+    recent = recent.filter(function(r){ return now - r.t < MERGE_MS; });
+    for(var i=0;i<recent.length;i++){
+      var dx = (recent[i].x - nx) * aspect, dy = recent[i].y - ny;
+      if(Math.sqrt(dx*dx + dy*dy) < MERGE_DIST){ recent[i].t = now; recent[i].x = nx; recent[i].y = ny; return; }
+    }
+    recent.push({x:nx, y:ny, t:now});
     var x = nx * window.innerWidth, y = ny * window.innerHeight;
     wallHits++;
     dot(x, y);
@@ -357,7 +371,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(type !== "tuio") counts[type] = (counts[type]||0) + 1;
     var parts = [];
     for(var k in counts){ parts.push(k + ":" + counts[k]); }
-    dbg.textContent = (tuioText ? "WALL " + tuioText + " | " : "") + "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
+    dbg.textContent = (tuioText ? "WALL " + tuioText + " | taps " + wallHits + "/" + wallRaw + " | " : "") + "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
       " | last: " + type + (x!=null ? " @" + Math.round(x) + "," + Math.round(y) : "") + " | " + parts.join(" ");
   }
   function watch(type){
