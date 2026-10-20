@@ -40,8 +40,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .ans.s2-a{right:16vw;top:39vh}.ans.s2-b{right:16vw;top:66vh}
 .ans.hit{transform:scale(.94)}
 .ans.good{background:var(--ok)!important;color:var(--bg);border-color:#fff}
-.ans.wrong{background:var(--bad)!important;animation:shake .35s}
-.side-locked .ans{opacity:.35}
+.ans.wrong{background:var(--bad)!important}
 .lockmsg{position:absolute;top:61vh;width:22vw;text-align:center;font-size:4vh;color:var(--bad);opacity:0;pointer-events:none}
 .lockmsg.l1{left:16vw}.lockmsg.l2{right:16vw}
 .side-locked .lockmsg{opacity:1}
@@ -196,6 +195,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
       b.classList.remove("good","wrong","hit");
     });
     accepting = true;
+    settle(1); settle(2);
   }
 
   // shrink text until it fits its box (works on any screen shape)
@@ -240,6 +240,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
       setTimeout(function(){
         locked[p] = false;
         $("side"+p).classList.remove("side-locked");
+        settle(p);
         b.classList.remove("wrong");
       }, LOCK_MS);
     }
@@ -266,7 +267,32 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   var MERGE_MS   = 450;    // a touch must leave for this long before it can count again
   var CONFIRM    = 2;      // a touch must be seen in this many camera frames (drops noise)
   var EDGE       = 0.03;   // ignore the very edges
-  var wallHits = 0, wallRaw = 0, contactsList = [];
+  var wallHits = 0, wallRaw = 0, contactsList = [], ghostBlocked = 0;
+
+  // ---- settle time: the camera sees screen changes as "hits", so after a side
+  //      changes (new question, wrong flash ends) it ignores hits for a moment
+  var SETTLE_MS = 550, settleUntil = {1:0, 2:0};
+  function settle(p){ settleUntil[p] = Date.now() + SETTLE_MS; }
+
+  // ---- hotspot filter: a spot that fires in most of the last 12 seconds is a
+  //      reflection / sensor ghost, not a player
+  var GRID_X = 24, GRID_Y = 14, HOT_WINDOW = 12, HOT_SECONDS = 8, cellSecs = {};
+  function cellOf(nx, ny){ return Math.min(GRID_X-1, Math.max(0, Math.floor(nx*GRID_X))) + "," + Math.min(GRID_Y-1, Math.max(0, Math.floor(ny*GRID_Y))); }
+  function markCell(nx, ny){
+    var k = cellOf(nx, ny), sec = Math.floor(Date.now()/1000), a = cellSecs[k] || (cellSecs[k] = []);
+    if(a[a.length-1] !== sec) a.push(sec);
+    while(a.length && a[0] <= sec - HOT_WINDOW) a.shift();
+  }
+  function isHot(nx, ny){
+    var sec = Math.floor(Date.now()/1000), cx = Math.floor(nx*GRID_X), cy = Math.floor(ny*GRID_Y);
+    for(var dx=-1; dx<=1; dx++) for(var dy=-1; dy<=1; dy++){
+      var a = cellSecs[(cx+dx) + "," + (cy+dy)];
+      if(!a) continue;
+      var n = 0; for(var i=0;i<a.length;i++) if(a[i] > sec - HOT_WINDOW) n++;
+      if(n >= HOT_SECONDS) return true;
+    }
+    return false;
+  }
 
   // ---- saved settings (Android app storage, browser storage as fallback)
   function load(key){
@@ -371,6 +397,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(calibrating){ calHit(rx, ry); return; }
     var m = mapPt(rx, ry), nx = m[0], ny = m[1];
     if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
+    markCell(nx, ny);
     var now = Date.now(), aspect = window.innerWidth / window.innerHeight, c = null;
     contactsList = contactsList.filter(function(r){ return now - r.t < MERGE_MS; });
     for(var i=0;i<contactsList.length;i++){
@@ -384,6 +411,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     var x = nx * window.innerWidth, y = ny * window.innerHeight;
     var el = targetAt(x, y);
     if(!el) return;                 // outside the squares/buttons: ignored, no circle
+    if(isHot(nx, ny)){ ghostBlocked++; return; }
+    var side = el.getAttribute && el.getAttribute("data-p");
+    if(side && now < settleUntil[+side]){ ghostBlocked++; return; }
     wallHits++;
     dot(x, y);
     activate(el);
@@ -494,7 +524,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     if(type !== "tuio") counts[type] = (counts[type]||0) + 1;
     var parts = [];
     for(var k in counts){ parts.push(k + ":" + counts[k]); }
-    dbg.textContent = (tuioText ? "WALL " + tuioText + " | taps " + wallHits + "/" + wallRaw + " | " : "") + "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
+    dbg.textContent = (tuioText ? "WALL " + tuioText + " | taps " + wallHits + "/" + wallRaw + " ghosts " + ghostBlocked + " | " : "") + "WebView " + chromeVer + " | " + window.innerWidth + "x" + window.innerHeight +
       " | last: " + type + (x!=null ? " @" + Math.round(x) + "," + Math.round(y) : "") + " | " + parts.join(" ");
   }
   function watch(type){
