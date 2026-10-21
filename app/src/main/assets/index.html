@@ -13,16 +13,16 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff;font-family:"Game","Arial Rounded MT Bold",Arial,sans-serif;touch-action:none}
 #stage{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:radial-gradient(ellipse at 50% 35%,var(--bg2) 0%,var(--bg) 70%)}
-.divider{position:absolute;left:50%;top:36vh;bottom:6vh;width:0.6vw;margin-left:-0.3vw;border-radius:1vw;background:rgba(255,255,255,.12)}
+.divider{display:none}
 
 /* ---------- top bar ---------- */
-.timer{position:absolute;left:50%;top:3vh;transform:translateX(-50%);min-width:18vw;padding:1vh 2vw;border-radius:3vh;background:rgba(255,255,255,.1);border:0.4vh solid rgba(255,255,255,.25);text-align:center;font-size:6vh;line-height:1.1;letter-spacing:.2vw}
+.timer{position:absolute;left:50%;top:6vh;transform:translateX(-50%);min-width:18vw;padding:1vh 2vw;border-radius:3vh;background:rgba(255,255,255,.1);border:0.4vh solid rgba(255,255,255,.25);text-align:center;font-size:6vh;line-height:1.1;letter-spacing:.2vw}
 .timer.low{color:var(--bad);border-color:var(--bad);animation:pulse .8s infinite}
-.question{position:absolute;left:50%;top:14vh;transform:translateX(-50%);width:26vw;height:18vh;white-space:nowrap;overflow:hidden;border-radius:3vh;background:#fff;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11vh;line-height:1;box-shadow:0 1vh 0 rgba(0,0,0,.25)}
+.question{position:absolute;left:50%;top:34vh;transform:translateX(-50%);width:23vw;height:32vh;white-space:nowrap;overflow:hidden;border-radius:3vh;background:#fff;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12vh;line-height:1;box-shadow:0 1vh 0 rgba(0,0,0,.25)}
 .question.reveal{background:var(--sun)}
 
-.player{position:absolute;top:4vh;width:20vw;text-align:center}
-.player.p1{left:17vw}.player.p2{right:17vw}
+.player{position:absolute;top:31vh;width:22vw;text-align:center}
+.player.p1{left:14vw}.player.p2{right:14vw}
 .player .name{font-size:4.6vh;white-space:nowrap;letter-spacing:.3vw}
 .p1 .name{color:var(--p1)}.p2 .name{color:var(--p2)}
 .counter{margin:1vh auto 0;width:12vw;height:12vh;border-radius:2.5vh;display:flex;align-items:center;justify-content:center;font-size:9vh;line-height:1;color:var(--bg);position:relative}
@@ -34,15 +34,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .plus.show{animation:plus 0.9s ease-out}
 
 /* ---------- answer squares (kept well away from all edges) ---------- */
-.ans{position:absolute;width:22vw;height:21vh;border-radius:3.5vh;display:flex;align-items:center;justify-content:center;font-size:13vh;line-height:1;color:#fff;border:0.8vh solid rgba(255,255,255,.85);box-shadow:0 1.2vh 0 rgba(0,0,0,.3);transition:transform .08s,opacity .2s}
+.ans{position:absolute;width:22vw;height:20vh;border-radius:3.5vh;display:flex;align-items:center;justify-content:center;font-size:13vh;line-height:1;color:#fff;border:0.8vh solid rgba(255,255,255,.85);box-shadow:0 1.2vh 0 rgba(0,0,0,.3);transition:transform .08s,opacity .2s}
 .ans.p1{background:var(--p1d)}.ans.p2{background:var(--p2d)}
-.ans.s1-a{left:16vw;top:39vh}.ans.s1-b{left:16vw;top:66vh}
-.ans.s2-a{right:16vw;top:39vh}.ans.s2-b{right:16vw;top:66vh}
+.ans.s1-a{left:14vw;top:2.5vh}.ans.s1-b{left:14vw;top:77.5vh}
+.ans.s2-a{right:14vw;top:2.5vh}.ans.s2-b{right:14vw;top:77.5vh}
 .ans.hit{transform:scale(.94)}
 .ans.good{background:var(--ok)!important;color:var(--bg);border-color:#fff}
 .ans.wrong{background:var(--bad)!important}
-.lockmsg{position:absolute;top:61vh;width:22vw;text-align:center;font-size:4vh;color:var(--bad);opacity:0;pointer-events:none}
-.lockmsg.l1{left:16vw}.lockmsg.l2{right:16vw}
+.lockmsg{position:absolute;top:63vh;width:22vw;text-align:center;font-size:4vh;color:var(--bad);opacity:0;pointer-events:none}
+.lockmsg.l1{left:14vw}.lockmsg.l2{right:14vw}
 .side-locked .lockmsg{opacity:1}
 
 /* ---------- overlays ---------- */
@@ -63,7 +63,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 .confetti{position:absolute;top:-5vh;width:1.4vw;height:2.6vh;border-radius:.4vh;opacity:.95;animation:fall linear forwards}
 
 /* ---------- touch tester (test build) ---------- */
-#dbg{position:fixed;left:1vw;bottom:1vh;z-index:50;font:bold 2.2vh Arial,sans-serif;color:#FFC929;background:rgba(0,0,0,.6);padding:.6vh 1vw;border-radius:1vh;pointer-events:none;max-width:60vw}
+#dbg{position:fixed;left:50%;transform:translateX(-50%);bottom:1vh;z-index:50;font:bold 1.6vh Arial,sans-serif;max-width:24vw !important;text-align:center;color:#FFC929;background:rgba(0,0,0,.6);padding:.6vh 1vw;border-radius:1vh;pointer-events:none;max-width:60vw}
 .tdot{position:fixed;z-index:60;width:6vh;height:6vh;margin:-3vh 0 0 -3vh;border-radius:50%;border:.6vh solid #FFC929;pointer-events:none;-webkit-animation:tfade 1.2s ease-out forwards;animation:tfade 1.2s ease-out forwards}
 @-webkit-keyframes tfade{0%{-webkit-transform:scale(.4);opacity:1}100%{-webkit-transform:scale(1.6);opacity:0}}
 @keyframes tfade{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
@@ -118,8 +118,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     <div class="title">MATH <span>DUEL</span></div>
     <div class="sub">Solve the sum and hit the right answer on your side!<br>First to 10 wins · 3 minutes</div>
     <div class="btn" id="startBtn">START</div>
-    <div class="btnrow"><div class="btn small" id="calBtn">CALIBRATE</div><div class="btn small" id="sensorBtn">WALL TEST</div></div>
+    <div class="btnrow"><div class="btn small" id="sensorBtn">WALL TEST</div></div>
     <div class="calstatus" id="calStatus"></div>
+    <div id="calBtn" style="display:none"></div>
   </div>
   <div class="overlay hidden" id="calScreen">
     <div class="caltext" id="calText">CALIBRATION</div>
@@ -283,7 +284,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
 
   // ---- settle time: the camera sees screen changes as "hits", so after a side
   //      changes (new question, wrong flash ends) it ignores hits for a moment
-  var SETTLE_MS = 500, settleUntil = {1:0, 2:0};
+  var SETTLE_MS = 400, settleUntil = {1:0, 2:0};
   function settle(p){ settleUntil[p] = Date.now() + SETTLE_MS; }
 
   // ---- hotspot filter: a spot that fires in most of the last 12 seconds is a
@@ -319,7 +320,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   // ---- calibration: quadratic fit  screen = f(raw)  from 9 target points
   var CAL_KEY = "mathduel_cal_v2";
   var cal = null;
-  try{ cal = JSON.parse(load(CAL_KEY) || "null"); }catch(e){ cal = null; }
+  // calibration not used: the Wall Test showed the sensor positions are already accurate
   // camera -> screen is a perspective transform (homography) for a flat wall
   function mapPt(x, y){
     if(!cal) return [x, y];
@@ -460,8 +461,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
   }
   function showCalStatus(msg){
     var el = $("calStatus");
-    el.textContent = msg || (cal ? "Calibrated ✓" : "⚠ NOT CALIBRATED — press CALIBRATE first for accurate hits");
-    el.classList.toggle("warn", !cal);
+    el.textContent = msg || "Stand at your side of the wall · touch with one hand · pull back";
+    el.classList.remove("warn");
   }
   showCalStatus();
 
@@ -535,6 +536,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     wallRaw++;
     if(calibrating){ calHit(rx, ry); return; }
     if(sensorView){ sensorDot(rx, ry); return; }
+    if(running){ gameVote(rx, ry); return; }
     if(!inCalArea(rx, ry)){ ghostBlocked++; return; }
     var m = mapPt(rx, ry), nx = m[0], ny = m[1];
     if(nx < EDGE || nx > 1-EDGE || ny < EDGE || ny > 1-EDGE) return;
@@ -559,11 +561,44 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     dot(x, y);
     activate(el);
   };
+  // ---- GAME INPUT (v2.1): built on the Wall Test results
+  //  * the sensor grid is 8 columns x 4 rows; positions are accurate
+  //  * it sees the whole arm/body, so: columns A and H (where players stand) are ignored,
+  //    answers sit in row 1 (top) and row 4 (bottom) so reaching one never crosses the other,
+  //    and when signals start on a side we count for VOTE_MS and pick the square with MOST signals
+  var VOTE_MS = 300, COOLDOWN_MS = 700;
+  var votes = {1:null, 2:null}, coolUntil = {1:0, 2:0};
+  function gameVote(rx, ry){
+    var col = Math.floor(rx * 8), row = Math.floor(ry * 4);
+    if(col <= 0 || col >= 7) return;                         // standing zones A and H
+    var p = col <= 2 ? 1 : (col >= 5 ? 2 : 0);               // B-C = player 1, F-G = player 2
+    var i = row === 0 ? 0 : (row === 3 ? 1 : -1);            // row 1 = top answer, row 4 = bottom answer
+    if(!p || i < 0) return;
+    var now = Date.now();
+    if(now < coolUntil[p] || now < settleUntil[p] || locked[p] || !accepting) return;
+    var v = votes[p];
+    if(!v){
+      v = votes[p] = {n:[0,0], last:[null,null]};
+      setTimeout(function(){ decide(p); }, VOTE_MS);
+    }
+    v.n[i]++; v.last[i] = [rx, ry];
+  }
+  function decide(p){
+    var v = votes[p]; votes[p] = null;
+    if(!v || !running) return;
+    var i = v.n[1] > v.n[0] ? 1 : 0;
+    coolUntil[p] = Date.now() + COOLDOWN_MS;
+    var el = document.querySelector('.ans.p' + p + '[data-i="' + i + '"]');
+    wallHits++;
+    if(v.last[i]) dot(v.last[i][0] * window.innerWidth, v.last[i][1] * window.innerHeight);
+    hitBox(el);
+  }
+
   var tuioText = "";
   window.tuioStatus = function(t){ tuioText = t; report("tuio"); };
 
   // ---- remote control: arrows choose START / CALIBRATE, OK presses it
-  var startFocus = cal ? 0 : 1, FOCUS_IDS = ["startBtn", "calBtn", "sensorBtn"];
+  var startFocus = 0, FOCUS_IDS = ["startBtn", "sensorBtn"];
   function paintFocus(){
     for(var i=0;i<FOCUS_IDS.length;i++) $(FOCUS_IDS[i]).classList.toggle("focus", startFocus === i);
   }
@@ -572,12 +607,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:#fff
     var k = e.keyCode;
     var onStart = !$("startScreen").classList.contains("hidden");
     if(sensorView && (k === 13 || k === 23 || k === 32 || k === 4 || k === 27)){ stopSensorView(); return; }
-    if(onStart && (k === 39 || k === 40)){ startFocus = (startFocus + 1) % 3; paintFocus(); return; }
-    if(onStart && (k === 37 || k === 38)){ startFocus = (startFocus + 2) % 3; paintFocus(); return; }
+    if(onStart && (k === 37 || k === 38 || k === 39 || k === 40)){ startFocus = 1 - startFocus; paintFocus(); return; }
     if(k === 13 || k === 23 || k === 32 || e.key === "Enter"){
       audio();
       if(calibrating){ cancelCalibration(); return; }
-      if(onStart){ if(startFocus === 0) countdown(); else if(startFocus === 1) startCalibration(); else startSensorView(); }
+      if(onStart){ if(startFocus === 0) countdown(); else startSensorView(); }
       else if(!$("endScreen").classList.contains("hidden") && againReady) countdown();
     }
   });
